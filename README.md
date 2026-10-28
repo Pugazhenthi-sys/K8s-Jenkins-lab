@@ -45,4 +45,7 @@ Tip: after the first job, use New Item > "Copy from" and only change the Script 
   Jenkins builds by itself within ~2 minutes. (A real GitHub webhook needs a public Jenkins URL.)
 - Set 14 finishing UNSTABLE (yellow) is the expected result: failure detected + rolled back.
 - Sets 12/15: the Docker Hub repos lab-web-app / lab-fullstack-app are created on first push. Keep them Public.
+- HTTP checks run INSIDE the cluster (kubectl run + curl against the Service name) because Docker Desktop's
+  Kubernetes does not publish NodePorts on localhost. To open a page in your browser use, for example:
+      kubectl port-forward svc/web-svc 8081:80      then browse http://localhost:8081
 - Clean up everything afterwards: run cleanup.bat

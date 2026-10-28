@@ -17,11 +17,11 @@ pipeline {
                 bat 'kubectl get endpoints web-svc'
             }
         }
-        stage('Test over HTTP') {
+        stage('Test Service (in-cluster HTTP check)') {
             steps {
-                retry(5) {
+                retry(3) {
                     sleep 3
-                    bat 'curl.exe -s -I http://localhost:30081'
+                    bat 'kubectl run curl-test-%BUILD_NUMBER% --rm -i --restart=Never --image=curlimages/curl:8.8.0 --command -- curl -s -I http://web-svc'
                 }
             }
         }
