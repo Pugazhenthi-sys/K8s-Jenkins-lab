@@ -1,0 +1,53 @@
+pipeline {
+    agent any
+    environment {
+        PATH = "C:\\Program Files\\Docker\\Docker\\resources\\bin;${env.PATH}"
+        KUBECONFIG = 'C:\\Users\\pugaz\\.kube\\config'
+        BAD_IMAGE = 'nginx:9.99.99-doesnotexist'
+        FIXED_IMAGE = 'nginx:1.25'
+    }
+    stages {
+        stage('Deploy good version') {
+            steps {
+                bat 'kubectl apply -f set14a-troubleshoot-fixed/deployment.yaml'
+                bat 'kubectl rollout status deployment/trouble-app-a --timeout=120s'
+            }
+        }
+        stage('Deploy faulty version') {
+            steps {
+                bat 'kubectl set image deployment/trouble-app-a nginx=%BAD_IMAGE%'
+            }
+        }
+        stage('Detect and troubleshoot') {
+            steps {
+                script {
+                    def rc = bat(returnStatus: true, script: 'kubectl rollout status deployment/trouble-app-a --timeout=60s')
+                    if (rc != 0) {
+                        echo 'DEPLOYMENT FAILURE DETECTED - collecting diagnostics'
+                        bat 'kubectl get pods -l app=trouble-app-a'
+                        bat 'kubectl describe pods -l app=trouble-app-a | findstr /i "Name: Image: Reason: Failed" || exit /b 0'
+                        bat 'kubectl get events --sort-by=.lastTimestamp | findstr trouble-app-a || exit /b 0'
+                        echo 'Root cause: the new image tag does not exist (ImagePullBackOff). Rolling back.'
+                        bat 'kubectl rollout undo deployment/trouble-app-a'
+                        bat 'kubectl rollout status deployment/trouble-app-a --timeout=120s'
+                    } else {
+                        echo 'No failure detected'
+                    }
+                }
+            }
+        }
+        stage('Fix and redeploy') {
+            steps {
+                bat 'kubectl set image deployment/trouble-app-a nginx=%FIXED_IMAGE%'
+                bat 'kubectl rollout status deployment/trouble-app-a --timeout=120s'
+                bat 'kubectl get pods -l app=trouble-app-a'
+                bat 'kubectl get deployment trouble-app-a -o jsonpath="{.spec.template.spec.containers[0].image}"'
+                bat 'kubectl rollout history deployment/trouble-app-a'
+            }
+        }
+    }
+    post {
+        success { echo 'Pipeline succeeded!' }
+        failure { echo 'Pipeline failed. Check the console output.' }
+    }
+}
